@@ -23,7 +23,7 @@ class OtaBle:
 
     otable-config.json looks a bit like this:
     {
-        "name": "YourDeviceUpdate",
+        "name": "YourDeviceName",
         "service_uuid": "guid-with-dashes-here",
         "control_uuid": "guid-with-dashes-here",
         "version_uuid": "guid-with-dashes-here"
@@ -37,7 +37,7 @@ class OtaBle:
 
     Contents of the file 'version' in the root of the firmware directory will be set as the firmware chacteristic, if present.
     """
-    def __init__(self):
+    def __init__(self, additional_services):
         # Load the config
         try:
             with open("otable-config.json", "r") as f:
@@ -74,11 +74,13 @@ class OtaBle:
         except OSError:
             print("otable: did not find version file, version characteristic will remain empty")                
         print("otable: running advertising loop")
+        services = [self.service_uuid]
+        services.extend(self.additional_services)
         while True:
             async with await aioble.advertise(
                 1000,
                 name=self.name,
-                services=[self.service_uuid],
+                services=services,
             ) as connection:
                 print("otable: service connected")
                 workflow_task = asyncio.create_task(self.workflow())
@@ -166,17 +168,22 @@ def tar_expand(data, root):
                     pass
 
 async def main():
-    # Bring the OTA service up
-    ota = OtaBle()
-    ota_task = asyncio.create_task(ota.advertise())
+    sys.path.append("/firmware")
+    additional_services = []
 
-    # bring the firmware up
+    # find the firmware
     try:
-        sys.path.append("/firmware")
         import firmware.main  # if this blocks you'll brick the device (but it can throw)
         fw_task = asyncio.create_task(firmware.main.main())  # must be an async def (and use asyncio.sleep)
+        additional_services = firmware.main.advertised_services()
     except ImportError:
         print("otable: no firmware found, still listening for uploads")
+    except NameError:
+        print("otable: no additional advertising requirements found")
+
+    # Bring the OTA service up
+    ota = OtaBle(additional_services)
+    ota_task = asyncio.create_task(ota.advertise())
 
     # All good
     asyncio.get_event_loop().run_forever()
