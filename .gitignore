@@ -153,3 +153,4 @@ cython_debug/
 
 bin/
 pyvenv.cfg
+.DS_Store
