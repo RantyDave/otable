@@ -7,6 +7,7 @@ import aioble
 import json
 import os
 import io
+import sys
 import binascii
 import cryptolib
 import hashlib
@@ -171,6 +172,7 @@ async def main():
 
     # bring the firmware up
     try:
+        sys.path.append("/firmware")
         import firmware.main  # if this blocks you'll brick the device (but it can throw)
         fw_task = asyncio.create_task(firmware.main.main())  # must be an async def (and use asyncio.sleep)
     except ImportError:
