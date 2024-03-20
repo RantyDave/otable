@@ -37,12 +37,13 @@ class OtaBle:
 
     Contents of the file 'version' in the root of the firmware directory will be set as the firmware chacteristic, if present.
     """
-    def __init__(self, additional_services):
+    def __init__(self, additional_advertising):
+        self.additional_advertising = [bluetooth.UUID(x) for x in additional_advertising]
+
         # Load the config
         try:
             with open("otable-config.json", "r") as f:
                 config = json.load(f)
-                self.name = config["name"]
                 self.service_uuid = bluetooth.UUID(config["service_uuid"])
                 self.control_uuid = bluetooth.UUID(config["control_uuid"])
                 self.version_uuid = bluetooth.UUID(config["version_uuid"])
@@ -73,13 +74,12 @@ class OtaBle:
             print("otable: firmware version is", version)
         except OSError:
             print("otable: did not find version file, version characteristic will remain empty")                
-        print("otable: running advertising loop")
         services = [self.service_uuid]
-        services.extend(self.additional_services)
+        services.extend(self.additional_advertising)
+        print("otable: advertising", services)
         while True:
             async with await aioble.advertise(
                 1000,
-                name=self.name,
                 services=services,
             ) as connection:
                 print("otable: service connected")
@@ -169,20 +169,20 @@ def tar_expand(data, root):
 
 async def main():
     sys.path.append("/firmware")
-    additional_services = []
+    additional_advertising = []
 
     # find the firmware
     try:
         import firmware.main  # if this blocks you'll brick the device (but it can throw)
         fw_task = asyncio.create_task(firmware.main.main())  # must be an async def (and use asyncio.sleep)
-        additional_services = firmware.main.advertised_services()
+        additional_advertising = firmware.main.advertised_services()
     except ImportError:
         print("otable: no firmware found, still listening for uploads")
     except NameError:
         print("otable: no additional advertising requirements found")
 
     # Bring the OTA service up
-    ota = OtaBle(additional_services)
+    ota = OtaBle(additional_advertising)
     ota_task = asyncio.create_task(ota.advertise())
 
     # All good
